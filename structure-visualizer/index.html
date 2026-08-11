@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Code Blueprint — Structure Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg: #0a1120;
+    --bg-grid: #101c33;
+    --panel: #0d1830;
+    --panel-2: #0f1e3a;
+    --line: #22345a;
+    --line-dim: #17233d;
+    --text: #dbe4f3;
+    --text-dim: #7e93b8;
+    --text-faint: #4c5f83;
+    --accent: #4fd6c8;
+    --accent-dim: #2c7a72;
+    --amber: #f2b84b;
+    --violet: #b18cf0;
+    --pink: #f0729a;
+    --blue: #6ea8f7;
+    --green: #4fd68c;
+    --radius: 3px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-height: 560px;
+    background-image:
+      linear-gradient(var(--bg-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-position: -1px -1px;
+  }
+
+  header {
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: linear-gradient(180deg, rgba(13,24,48,0.9), rgba(13,24,48,0.4));
+  }
+  header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 0;
+    color: var(--text);
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.02em;
+  }
+
+  #main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(320px, 40%) 1px 1fr;
+    min-height: 0;
+  }
+  @media (max-width: 820px) {
+    #main { grid-template-columns: 1fr; grid-template-rows: 42% 1px 1fr; }
+  }
+
+  #divider { background: var(--line); }
+
+  #editor-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--panel);
+  }
+
+  #lang-row {
+    display: flex;
+    gap: 2px;
+    padding: 10px 10px 0;
+  }
+  .lang-tab {
+    padding: 7px 16px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    background: var(--panel-2);
+    color: var(--text-faint);
+    border: 1px solid var(--line);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    cursor: pointer;
+    user-select: none;
+  }
+  .lang-tab.active {
+    color: var(--accent);
+    background: var(--bg);
+    border-color: var(--accent-dim);
+  }
+  .lang-tab:hover:not(.active) { color: var(--text-dim); }
+
+  #editor-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    margin: 0 10px 10px;
+    border-top: none;
+    background: var(--bg);
+    min-height: 0;
+  }
+  #line-count {
+    display:flex; justify-content:space-between;
+    padding: 6px 12px;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    border-bottom: 1px solid var(--line-dim);
+    letter-spacing: 0.04em;
+  }
+  #line-count span.warn { color: var(--amber); }
+
+  textarea {
+    flex: 1;
+    resize: none;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    padding: 12px 14px;
+    tab-size: 4;
+  }
+  textarea::placeholder { color: var(--text-faint); }
+
+  #controls-row {
+    display: flex;
+    gap: 8px;
+    padding: 0 10px 12px;
+  }
+  button {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    padding: 9px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent-dim); color: var(--text); }
+  #sample-btn { flex: 1; }
+  #clear-btn { }
+
+  #canvas-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  #stats-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .stat {
+    padding: 10px 18px;
+    border-right: 1px solid var(--line-dim);
+    min-width: 84px;
+  }
+  .stat .num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .stat .lbl {
+    font-size: 9.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .stat.classes .num { color: var(--violet); }
+  .stat.funcs .num { color: var(--green); }
+  .stat.loops .num { color: var(--accent); }
+  .stat.branches .num { color: var(--amber); }
+  .stat.depth .num { color: var(--blue); }
+
+  #diagram-scroll {
+    flex: 1;
+    overflow: auto;
+    padding: 22px 26px 60px;
+  }
+
+  #empty-state {
+    color: var(--text-faint);
+    font-size: 12.5px;
+    line-height: 1.8;
+    padding-top: 20px;
+  }
+  #empty-state b { color: var(--text-dim); }
+
+  .root-line {
+    display:flex; align-items:center; gap:8px;
+    color: var(--text-faint);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .root-line::after { content:''; flex:1; height:1px; background: var(--line-dim); }
+
+  .tree { }
+  .node-block { position: relative; }
+  .node-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px 7px 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left-width: 3px;
+    border-radius: var(--radius);
+    font-size: 12.5px;
+    margin-bottom: 6px;
+    max-width: 100%;
+  }
+  .node-icon {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    width: 18px; height: 18px;
+    display: flex; align-items:center; justify-content:center;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .node-type {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    flex-shrink:0;
+  }
+  .node-name {
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 340px;
+  }
+  .node-line {
+    color: var(--text-faint);
+    font-size: 10px;
+    margin-left: auto;
+    padding-left: 10px;
+    flex-shrink: 0;
+  }
+
+  .children {
+    margin-left: 19px;
+    padding-left: 22px;
+    border-left: 2px dashed var(--line);
+    position: relative;
+  }
+  .branch { position: relative; }
+  .branch::before {
+    content: '';
+    position: absolute;
+    left: -22px;
+    top: 15px;
+    width: 20px;
+    border-top: 2px dashed var(--line);
+  }
+  .branch:last-child { }
+
+  /* type colors */
+  .t-class .node-card { border-left-color: var(--violet); }
+  .t-class .node-icon { background: rgba(177,140,240,0.15); color: var(--violet); }
+  .t-class .node-type { color: var(--violet); }
+
+  .t-function .node-card { border-left-color: var(--green); }
+  .t-function .node-icon { background: rgba(79,214,140,0.15); color: var(--green); }
+  .t-function .node-type { color: var(--green); }
+
+  .t-if .node-card, .t-elif .node-card, .t-else .node-card, .t-case .node-card, .t-switch .node-card {
+    border-left-color: var(--amber);
+  }
+  .t-if .node-icon, .t-elif .node-icon, .t-else .node-icon, .t-case .node-icon, .t-switch .node-icon {
+    background: rgba(242,184,75,0.15); color: var(--amber);
+  }
+  .t-if .node-type, .t-elif .node-type, .t-else .node-type, .t-case .node-type, .t-switch .node-type { color: var(--amber); }
+
+  .t-for .node-card, .t-while .node-card, .t-do .node-card {
+    border-left-color: var(--accent);
+  }
+  .t-for .node-icon, .t-while .node-icon, .t-do .node-icon {
+    background: rgba(79,214,200,0.15); color: var(--accent);
+  }
+  .t-for .node-type, .t-while .node-type, .t-do .node-type { color: var(--accent); }
+
+  .t-try .node-card, .t-catch .node-card, .t-finally .node-card, .t-except .node-card {
+    border-left-color: var(--pink);
+  }
+  .t-try .node-icon, .t-catch .node-icon, .t-finally .node-icon, .t-except .node-icon {
+    background: rgba(240,114,154,0.15); color: var(--pink);
+  }
+  .t-try .node-type, .t-catch .node-type, .t-finally .node-type, .t-except .node-type { color: var(--pink); }
+
+  .t-with .node-card { border-left-color: var(--blue); }
+  .t-with .node-icon { background: rgba(110,168,247,0.15); color: var(--blue); }
+  .t-with .node-type { color: var(--blue); }
+
+  footer {
+    padding: 7px 20px;
+    font-size: 10px;
+    color: var(--text-faint);
+    border-top: 1px solid var(--line);
+    letter-spacing: 0.03em;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Code <span>Blueprint</span></h1>
+    <p>type or paste code — a live structure diagram traces classes, functions, loops, and branches as you write</p>
+  </header>
+
+  <div id="main">
+    <div id="editor-pane">
+      <div id="lang-row">
+        <div class="lang-tab active" data-lang="java">Java</div>
+        <div class="lang-tab" data-lang="python">Python</div>
+        <div class="lang-tab" data-lang="javascript">JavaScript</div>
+      </div>
+      <div id="editor-wrap">
+        <div id="line-count"><span id="lc-text">0 lines</span><span id="lc-warn" class="warn"></span></div>
+        <textarea id="code-input" spellcheck="false" placeholder="Start typing code..."></textarea>
+      </div>
+      <div id="controls-row">
+        <button id="sample-btn">Load sample</button>
+        <button id="clear-btn">Clear</button>
+      </div>
+    </div>
+    <div id="divider"></div>
+    <div id="canvas-pane">
+      <div id="stats-bar">
+        <div class="stat classes"><div class="num" id="st-classes">0</div><div class="lbl">Classes</div></div>
+        <div class="stat funcs"><div class="num" id="st-funcs">0</div><div class="lbl">Functions</div></div>
+        <div class="stat loops"><div class="num" id="st-loops">0</div><div class="lbl">Loops</div></div>
+        <div class="stat branches"><div class="num" id="st-branches">0</div><div class="lbl">Branches</div></div>
+        <div class="stat depth"><div class="num" id="st-depth">0</div><div class="lbl">Max depth</div></div>
+      </div>
+      <div id="diagram-scroll">
+        <div id="diagram-root"></div>
+      </div>
+    </div>
+  </div>
+  <footer>pattern-based parser — reads structure from common code shapes, not a full compiler. best on typical class/function/control-flow code.</footer>
+</div>
+
+<script>
+(function(){
+  var LANG_SAMPLES = {
+    java:
+`public class InventoryManager {
+
+    private List<Item> items = new ArrayList<>();
+
+    public InventoryManager(List<Item> items) {
+        this.items = items;
+    }
+
+    public double calculateTotal(boolean includeTax) {
+        double total = 0;
+        for (Item item : items) {
+            if (item.isDiscontinued()) {
+                continue;
+            } else if (item.getQuantity() <= 0) {
+                continue;
+            }
+            total += item.getPrice() * item.getQuantity();
+        }
+        if (includeTax) {
+            total = total * 1.08;
+        }
+        return total;
+    }
+
+    public void restock(String sku, int amount) {
+        try {
+            Item item = findItem(sku);
+            while (amount > 0) {
+                item.increment();
+                amount--;
+            }
+        } catch (ItemNotFoundException e) {
+            System.out.println("Missing SKU: " + sku);
+        } finally {
+            logRestock(sku);
+        }
+    }
+
+    private Item findItem(String sku) {
+        for (Item item : items) {
+            if (item.getSku().equals(sku)) {
+                return item;
+            }
+        }
+        throw new ItemNotFoundException(sku);
+    }
+}`,
+    python:
+`class InventoryManager:
+    def __init__(self, items):
+        self.items = items
+
+    def calculate_total(self, include_tax=False):
+        total = 0
+        for item in self.items:
+            if item.discontinued:
+                continue
+            elif item.quantity <= 0:
+                continue
+            else:
+                total += item.price * item.quantity
+        if include_tax:
+            total *= 1.08
+        return total
+
+    def restock(self, sku, amount):
+        try:
+            item = self.find_item(sku)
+            while amount > 0:
+                item.increment()
+                amount -= 1
+        except ItemNotFoundError:
+            print("Missing SKU:", sku)
+        finally:
+            self.log_restock(sku)
+
+    def find_item(self, sku):
+        for item in self.items:
+            if item.sku == sku:
+                return item
+        raise ItemNotFoundError(sku)`,
+    javascript:
+`class InventoryManager {
+  constructor(items) {
+    this.items = items;
+  }
+
+  calculateTotal(includeTax) {
+    let total = 0;
+    for (const item of this.items) {
+      if (item.discontinued) {
+        continue;
+      } else if (item.quantity <= 0) {
+        continue;
+      } else {
+        total += item.price * item.quantity;
+      }
+    }
+    if (includeTax) {
+      total *= 1.08;
+    }
+    return total;
+  }
+
+  async restock(sku, amount) {
+    try {
+      const item = this.findItem(sku);
+      while (amount > 0) {
+        item.increment();
+        amount--;
+      }
+    } catch (e) {
+      console.log("Missing SKU:", sku);
+    } finally {
+      this.logRestock(sku);
+    }
+  }
+
+  findItem(sku) {
+    for (const item of this.items) {
+      if (item.sku === sku) {
+        return item;
+      }
+    }
+    throw new Error(sku);
+  }
+}`
+  };
+
+  var ICONS = {
+    class: 'C', function: 'ƒ', if: '?', elif: '?', else: '·', switch: '⇄', case: '›',
+    for: '↻', while: '↻', do: '↻', try: '!', catch: '!', except: '!', finally: '!', with: '»'
+  };
+  var LABELS = {
+    class: 'class', function: 'func', if: 'if', elif: 'elif', else: 'else', switch: 'switch',
+    case: 'case', for: 'for', while: 'while', do: 'do', try: 'try', catch: 'catch',
+    except: 'except', finally: 'finally', with: 'with'
+  };
+
+  function makeNode(type, name, line){
+    return { type: type, name: name, line: line, children: [] };
+  }
+
+  function stripStringsAndComments(line, state){
+    // state.blockComment true if inside /* */
+    var out = '';
+    var i = 0;
+    var inStr = null;
+    while (i < line.length) {
+      if (state.blockComment) {
+        var end = line.indexOf('*/', i);
+        if (end === -1) { return out; }
+        state.blockComment = false;
+        i = end + 2;
+        continue;
+      }
+      var ch = line[i];
+      if (inStr) {
+        if (ch === '\\') { i += 2; continue; }
+        if (ch === inStr) { inStr = null; }
+        i++;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === '\`') { inStr = ch; i++; continue; }
+      if (ch === '/' && line[i+1] === '/') { break; }
+      if (ch === '/' && line[i+1] === '*') { state.blockComment = true; i += 2; continue; }
+      out += ch;
+      i++;
+    }
+    return out;
+  }
+
+  // ---- Java / JavaScript parser (brace + regex heuristic) ----
+  function parseBraceLang(code, lang){
+    var root = makeNode('root', 'file', 0);
+    var lines = code.split('\n');
+    var stack = [{ node: root, isNodeFrame: false }];
+    var cState = { blockComment: false };
+
+    var classRe = /\b(?:class|interface|enum)\s+([A-Za-z_$][\w$]*)/;
+    var elseIfRe = /\belse\s+if\s*\((.*)\)/;
+    var elseRe = /\belse\b\s*\{?/;
+    var ifRe = /\bif\s*\((.*)\)/;
+    var forRe = /\bfor\s*\((.*)\)/;
+    var whileRe = /\bwhile\s*\((.*)\)/;
+    var doRe = /^\s*do\s*\{/;
+    var tryRe = /\btry\s*\{/;
+    var catchRe = /\bcatch\s*\((.*)\)/;
+    var finallyRe = /\bfinally\s*\{/;
+    var switchRe = /\bswitch\s*\((.*)\)/;
+    var caseRe = /^\s*case\s+([^:]+):/;
+    var defaultCaseRe = /^\s*default\s*:/;
+    // function heuristics
+    var jsFuncNamed = /\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/;
+    var jsArrow = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>\s*\{/;
+    var jsArrowSingleArg = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?([A-Za-z_$][\w$]*)\s*=>\s*\{/;
+    var methodShorthand = /^\s*(?:public\s+|private\s+|protected\s+|static\s+|final\s+|async\s+|synchronized\s+|abstract\s+|@\w+\s+)*[A-Za-z_$][\w$<>\[\],.\s]*?\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*(?:throws\s+[\w,\s]+)?\{/;
+    var jsMethodShorthand = /^\s*(?:async\s+|static\s+|get\s+|set\s+)*([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/;
+    var controlWords = ['if','for','while','switch','catch','function','return','new','typeof','instanceof','synchronized','do'];
+
+    for (var li = 0; li < lines.length; li++){
+      var raw = lines[li];
+      var clean = stripStringsAndComments(raw, cState);
+      var trimmed = clean.trim();
+
+      var opens = (clean.match(/\{/g) || []).length;
+      var closes = (clean.match(/\}/g) || []).length;
+      var net = opens - closes;
+
+      var matchedType = null, matchedName = null;
+
+      if (trimmed.length && opens > 0) {
+        var m;
+        if ((m = classRe.exec(trimmed))) { matchedType = 'class'; matchedName = m[1]; }
+        else if ((m = elseIfRe.exec(trimmed))) { matchedType = 'elif'; matchedName = m[1].trim(); }
+        else if (/^\s*\}?\s*else\b/.test(trimmed) && !/if/.test(trimmed)) { matchedType = 'else'; matchedName = ''; }
+        else if ((m = ifRe.exec(trimmed)) && /^(if)\b/.test(trimmed.replace(/^\}\s*/,''))) { matchedType = 'if'; matchedName = m[1].trim(); }
+        else if ((m = forRe.exec(trimmed))) { matchedType = 'for'; matchedName = m[1].trim(); }
+        else if (doRe.test(trimmed)) { matchedType = 'do'; matchedName = ''; }
+        else if ((m = whileRe.exec(trimmed)) && /^while\b/.test(trimmed)) { matchedType = 'while'; matchedName = m[1].trim(); }
+        else if (tryRe.test(trimmed)) { matchedType = 'try'; matchedName = ''; }
+        else if ((m = catchRe.exec(trimmed))) { matchedType = 'catch'; matchedName = m[1].trim(); }
+        else if (finallyRe.test(trimmed)) { matchedType = 'finally'; matchedName = ''; }
+        else if ((m = switchRe.exec(trimmed))) { matchedType = 'switch'; matchedName = m[1].trim(); }
+        else if ((m = jsFuncNamed.exec(trimmed))) { matchedType = 'function'; matchedName = m[1] + '(' + m[2].trim() + ')'; }
+        else if ((m = jsArrow.exec(trimmed))) { matchedType = 'function'; matchedName = m[1] + '(' + m[2].trim() + ')'; }
+        else if ((m = jsArrowSingleArg.exec(trimmed))) { matchedType = 'function'; matchedName = m[1] + '(' + m[2] + ')'; }
+        else if (lang === 'java' && (m = methodShorthand.exec(trimmed))) {
+          if (controlWords.indexOf(m[1]) === -1) { matchedType = 'function'; matchedName = m[1] + '(' + m[2].trim() + ')'; }
+        }
+        else if (lang === 'javascript' && (m = jsMethodShorthand.exec(trimmed))) {
+          if (controlWords.indexOf(m[1]) === -1) { matchedType = 'function'; matchedName = m[1] + '(' + m[2].trim() + ')'; }
+        }
+      } else if (trimmed.length && opens === 0) {
+        if ((m = caseRe.exec(trimmed)) || (m = defaultCaseRe.exec(trimmed))) {
+          // case without its own brace - attach as lightweight leaf node
+          var parentFrame = stack[stack.length - 1];
+          parentFrame.node.children.push(makeNode('case', m && m[1] ? m[1].trim() : 'default', li + 1));
+        }
+      }
+
+      if (matchedType) {
+        var parent = stack[stack.length - 1].node;
+        var node = makeNode(matchedType, matchedName, li + 1);
+        parent.children.push(node);
+        stack.push({ node: node, isNodeFrame: true });
+        // extra opens on same line beyond the one consumed
+        for (var k = 0; k < opens - 1; k++) stack.push({ node: node, isNodeFrame: false });
+      } else if (opens > 0) {
+        for (var k2 = 0; k2 < opens; k2++) stack.push({ node: stack[stack.length-1].node, isNodeFrame: false });
+      }
+
+      for (var c = 0; c < closes; c++) {
+        if (stack.length > 1) stack.pop();
+      }
+    }
+
+    return root;
+  }
+
+  // ---- Python parser (indentation based) ----
+  function parsePython(code){
+    var root = makeNode('root', 'file', 0);
+    var lines = code.split('\n');
+    var stack = [{ indent: -1, node: root }];
+
+    var defRe = /^(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/;
+    var classRe = /^class\s+([A-Za-z_]\w*)/;
+    var ifRe = /^if\s+(.*):/;
+    var elifRe = /^elif\s+(.*):/;
+    var elseRe = /^else\s*:/;
+    var forRe = /^(?:async\s+)?for\s+(.*):/;
+    var whileRe = /^while\s+(.*):/;
+    var tryRe = /^try\s*:/;
+    var exceptRe = /^except\b(.*):/;
+    var finallyRe = /^finally\s*:/;
+    var withRe = /^(?:async\s+)?with\s+(.*):/;
+
+    for (var li = 0; li < lines.length; li++){
+      var raw = lines[li];
+      if (!raw.trim().length) continue;
+      var trimmed = raw.trim();
+      if (trimmed.charAt(0) === '#') continue;
+
+      var indent = raw.length - raw.replace(/^[ \t]*/, function(s){ return s.replace(/\t/g,'    '); }).length;
+      // compute indent properly
+      var leading = raw.match(/^[ \t]*/)[0];
+      indent = leading.replace(/\t/g, '    ').length;
+
+      while (stack.length > 1 && stack[stack.length-1].indent >= indent) stack.pop();
+      var parent = stack[stack.length-1].node;
+
+      var m, type = null, name = null;
+      if ((m = classRe.exec(trimmed))) { type='class'; name=m[1]; }
+      else if ((m = defRe.exec(trimmed))) { type='function'; name = m[1] + '(' + m[2].trim() + ')'; }
+      else if ((m = elifRe.exec(trimmed))) { type='elif'; name=m[1].trim(); }
+      else if (elseRe.test(trimmed)) { type='else'; name=''; }
+      else if ((m = ifRe.exec(trimmed))) { type='if'; name=m[1].trim(); }
+      else if ((m = forRe.exec(trimmed))) { type='for'; name=m[1].trim(); }
+      else if ((m = whileRe.exec(trimmed))) { type='while'; name=m[1].trim(); }
+      else if (tryRe.test(trimmed)) { type='try'; name=''; }
+      else if ((m = exceptRe.exec(trimmed))) { type='except'; name=m[1].trim(); }
+      else if (finallyRe.test(trimmed)) { type='finally'; name=''; }
+      else if ((m = withRe.exec(trimmed))) { type='with'; name=m[1].trim(); }
+
+      if (type) {
+        var node = makeNode(type, name, li+1);
+        parent.children.push(node);
+        stack.push({ indent: indent, node: node });
+      }
+    }
+    return root;
+  }
+
+  function parse(code, lang){
+    if (lang === 'python') return parsePython(code);
+    return parseBraceLang(code, lang);
+  }
+
+  function truncate(s, n){
+    if (!s) return '';
+    s = s.replace(/\s+/g, ' ').trim();
+    return s.length > n ? s.slice(0, n-1) + '…' : s;
+  }
+
+  function computeStats(root){
+    var s = { classes:0, funcs:0, loops:0, branches:0, maxDepth:0 };
+    function walk(node, depth){
+      if (node.type === 'class') s.classes++;
+      if (node.type === 'function') s.funcs++;
+      if (node.type === 'for' || node.type === 'while' || node.type === 'do') s.loops++;
+      if (node.type === 'if' || node.type === 'elif' || node.type === 'else' || node.type === 'switch' || node.type === 'case') s.branches++;
+      if (depth > s.maxDepth) s.maxDepth = depth;
+      node.children.forEach(function(c){ walk(c, depth+1); });
+    }
+    root.children.forEach(function(c){ walk(c, 1); });
+    return s;
+  }
+
+  function esc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderNode(node){
+    var icon = ICONS[node.type] || '•';
+    var label = LABELS[node.type] || node.type;
+    var nameHtml = node.name ? esc(truncate(node.name, 46)) : '';
+    var html = '<div class="node-block t-' + node.type + '">';
+    html += '<div class="node-card">';
+    html += '<div class="node-icon">' + icon + '</div>';
+    html += '<div class="node-type">' + label + '</div>';
+    if (nameHtml) html += '<div class="node-name">' + nameHtml + '</div>';
+    html += '<div class="node-line">L' + node.line + '</div>';
+    html += '</div>';
+    if (node.children.length) {
+      html += '<div class="children">';
+      node.children.forEach(function(c){
+        html += '<div class="branch">' + renderNode(c) + '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function render(){
+    var code = input.value;
+    var lang = currentLang;
+    var lineCount = code.split('\n').length;
+    lcText.textContent = lineCount + (lineCount === 1 ? ' line' : ' lines');
+
+    var root;
+    try {
+      root = parse(code, lang);
+      lcWarn.textContent = '';
+    } catch (e) {
+      lcWarn.textContent = '⚠ parser hit an issue on this input';
+      root = makeNode('root','file',0);
+    }
+
+    var stats = computeStats(root);
+    stClasses.textContent = stats.classes;
+    stFuncs.textContent = stats.funcs;
+    stLoops.textContent = stats.loops;
+    stBranches.textContent = stats.branches;
+    stDepth.textContent = stats.maxDepth;
+
+    if (!code.trim().length) {
+      diagramRoot.innerHTML = '<div id="empty-state">Nothing to trace yet. <b>Type or paste code</b> on the left — classes, functions, loops, and conditionals will appear here as connected blocks.<br><br>Click <b>Load sample</b> to see it in action.</div>';
+      return;
+    }
+    if (!root.children.length) {
+      diagramRoot.innerHTML = '<div id="empty-state">No structural elements detected yet (classes, functions, if/for/while/try). Plain statements aren\'t shown — this view traces control flow and definitions only.</div>';
+      return;
+    }
+
+    var html = '<div class="root-line">' + lang + ' — structure trace</div><div class="tree">';
+    root.children.forEach(function(c){
+      html += renderNode(c);
+    });
+    html += '</div>';
+    diagramRoot.innerHTML = html;
+  }
+
+  var input = document.getElementById('code-input');
+  var lcText = document.getElementById('lc-text');
+  var lcWarn = document.getElementById('lc-warn');
+  var diagramRoot = document.getElementById('diagram-root');
+  var stClasses = document.getElementById('st-classes');
+  var stFuncs = document.getElementById('st-funcs');
+  var stLoops = document.getElementById('st-loops');
+  var stBranches = document.getElementById('st-branches');
+  var stDepth = document.getElementById('st-depth');
+  var sampleBtn = document.getElementById('sample-btn');
+  var clearBtn = document.getElementById('clear-btn');
+  var tabs = document.querySelectorAll('.lang-tab');
+
+  var currentLang = 'java';
+  var debounceTimer = null;
+
+  function scheduleRender(){
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 250);
+  }
+
+  tabs.forEach(function(tab){
+    tab.addEventListener('click', function(){
+      tabs.forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      currentLang = tab.getAttribute('data-lang');
+      if (!input.value.trim().length) {
+        input.value = LANG_SAMPLES[currentLang];
+      }
+      render();
+    });
+  });
+
+  sampleBtn.addEventListener('click', function(){
+    input.value = LANG_SAMPLES[currentLang];
+    render();
+    input.focus();
+  });
+
+  clearBtn.addEventListener('click', function(){
+    input.value = '';
+    render();
+    input.focus();
+  });
+
+  input.addEventListener('input', scheduleRender);
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var start = input.selectionStart, end = input.selectionEnd;
+      input.value = input.value.slice(0, start) + '    ' + input.value.slice(end);
+      input.selectionStart = input.selectionEnd = start + 4;
+      scheduleRender();
+    }
+  });
+
+  // init
+  input.value = LANG_SAMPLES[currentLang];
+  render();
+})();
+</script>
+</body>
+</html>
