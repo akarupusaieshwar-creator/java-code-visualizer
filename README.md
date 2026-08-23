@@ -70,20 +70,23 @@ infinite loop forever):
 ## Project layout
 
 ```
-java-code-visualizer/
-  backend/
-    src/main/java/visualizer/
-      Tracer.java       # JDI-based step tracer
-      Json.java         # tiny dependency-free JSON writer
-    target-code/
-      Sample.java       # example program to trace
-    run.sh              # compile + trace in one command
-  frontend/
-    index.html
-    style.css
-    app.js
-    sample-trace.json   # pre-generated trace for Sample.java, so the UI
+backend/
+  src/main/java/visualizer/
+    Tracer.java        # JDI-based step tracer
+    Json.java           # tiny dependency-free JSON writer
+  target-code/
+    Sample.java         # example program to trace
+  run.sh                # compile + trace in one command
+frontend/
+  index.html
+  style.css
+  app.js
+  sample-trace.json     # pre-generated trace for Sample.java, so the UI
                          # has something to show immediately
+experiments/
+  structure-visualizer/ # separate, unrelated prototype: a static,
+                         # parsing-based "code blueprint" view (no JDI,
+                         # no real execution) — not part of the tracer
 ```
 
 ## Known limitations (first version)
