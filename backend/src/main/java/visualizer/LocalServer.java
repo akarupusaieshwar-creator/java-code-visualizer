@@ -24,19 +24,24 @@ public final class LocalServer {
         if (!Files.isDirectory(frontend)) throw new IllegalArgumentException("Frontend folder not found: " + frontend);
 
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
-        server.createContext("/", exchange -> handle(exchange, frontend));
+        String allowedOrigin = "http://127.0.0.1:" + port;
+        server.createContext("/", exchange -> handle(exchange, frontend, allowedOrigin));
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
         server.start();
         System.out.println("Java Code Visualizer is running at http://127.0.0.1:" + port);
         System.out.println("Keep this window open while using the visualizer. Press Ctrl+C to stop.");
     }
 
-    private static void handle(HttpExchange exchange, Path frontend) throws IOException {
-        if ("/api/trace".equals(exchange.getRequestURI().getPath())) handleTrace(exchange);
+    private static void handle(HttpExchange exchange, Path frontend, String allowedOrigin) throws IOException {
+        if ("/api/trace".equals(exchange.getRequestURI().getPath())) handleTrace(exchange, allowedOrigin);
         else serveFile(exchange, frontend, exchange.getRequestURI().getPath());
     }
 
-    private static void handleTrace(HttpExchange exchange) throws IOException {
+    private static void handleTrace(HttpExchange exchange, String allowedOrigin) throws IOException {
+        if (!allowedOrigin.equals(exchange.getRequestHeaders().getFirst("Origin"))) {
+            sendError(exchange, 403, "Open the visualizer at http://127.0.0.1:" + allowedOrigin.substring(allowedOrigin.lastIndexOf(":") + 1) + ".");
+            return;
+        }
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendError(exchange, 405, "Use POST to run a Java program.");
             return;
