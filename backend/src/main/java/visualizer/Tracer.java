@@ -8,6 +8,7 @@ import com.sun.jdi.request.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tracer
@@ -35,6 +36,8 @@ public class Tracer {
     private final Set<Long> knownObjectIds = new HashSet<>();
     private final StringBuilder stdout = new StringBuilder();
     private int maxSteps = 400;
+    private boolean truncated;
+    private boolean timedOut;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
@@ -73,9 +76,19 @@ public class Tracer {
         boolean stepRequestCreated = false;
         EventQueue queue = vm.eventQueue();
 
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+        boolean haltedByLimit = false;
         eventLoop:
         while (true) {
-            EventSet eventSet = queue.remove();
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) {
+                timedOut = true;
+                truncated = true;
+                break;
+            }
+            long waitMillis = Math.max(1, Math.min(TimeUnit.NANOSECONDS.toMillis(remaining), 1000));
+            EventSet eventSet = queue.remove(waitMillis);
+            if (eventSet == null) continue;
             for (Event event : eventSet) {
                 if (event instanceof ClassPrepareEvent) {
                     if (!stepRequestCreated) {
@@ -94,6 +107,8 @@ public class Tracer {
                     captureStep(((StepEvent) event).thread());
                     if (steps.size() >= maxSteps) {
                         System.err.println("Reached max step limit (" + maxSteps + "), stopping trace.");
+                        truncated = true;
+                        haltedByLimit = true;
                         break eventLoop;
                     }
                 } else if (event instanceof VMDeathEvent || event instanceof VMDisconnectEvent) {
@@ -103,11 +118,21 @@ public class Tracer {
             eventSet.resume();
         }
 
-        try {
-            vm.resume();
-        } catch (VMDisconnectedException ignored) {
+        if (timedOut || haltedByLimit) {
+            try {
+                vm.exit(0);
+            } catch (VMDisconnectedException ignored) {
+            }
+        } else {
+            try {
+                vm.resume();
+            } catch (VMDisconnectedException ignored) {
+            }
         }
-        process.waitFor();
+        if (!process.waitFor(3, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            process.waitFor(3, TimeUnit.SECONDS);
+        }
         outPump.join(2000);
 
         writeTraceJson(outputPath, className, sourceText);
@@ -337,6 +362,8 @@ public class Tracer {
         root.put("className", className);
         root.put("source", sourceText);
         root.put("steps", steps);
+        root.put("truncated", truncated);
+        root.put("timedOut", timedOut);
         synchronized (stdout) {
             root.put("finalOutput", stdout.toString());
         }

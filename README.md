@@ -1,88 +1,44 @@
 # Java Code Visualizer
 
-A step-by-step execution visualizer for Java. It runs programs under the real JVM debugger (JDI), then lets you replay the resulting runtime state in a browser.
+Paste Java code, run it with the real JVM debugger on your computer, and step through the execution visually. The page shows the current source line, call stack, local variables, heap objects, and program output.
 
-- **Current and next lines** highlighted as you step
-- **Call stack** with local variables in every frame, including recursive calls
-- **Heap view** for arrays and user-defined objects
-- **Program output** captured while the program runs
-- **Trace replay controls** with keyboard shortcuts, a step slider, and JSON file loading
+## Run the visualizer
 
-The published frontend is a static site: it does not compile or execute Java in the browser. Generate a trace with the local JDK backend, then open it in the page. Your source and trace stay in your browser when using the hosted page.
+You need JDK 17 or later.
 
-## How it works
+**Windows:** double-click `backend/run-server.bat`, or run it from Command Prompt. **macOS/Linux/WSL:** from the repository root, run:
 
-1. `backend/` compiles a `.java` file and launches it under the [Java Debug Interface](https://docs.oracle.com/en/java/javase/21/docs/api/jdk.jdi/com/sun/jdi/package-summary.html) (JDI).
-2. The tracer records the call stack, local variables, reachable heap objects, current source line, and stdout into a JSON trace.
-3. `frontend/` loads a trace and provides a step-by-step replay.
+```bash
+bash backend/run-server.sh
+```
 
-The backend uses the JDK; the frontend uses plain HTML, CSS, and JavaScript.
+Keep the terminal window open, then open [http://127.0.0.1:8765](http://127.0.0.1:8765). Paste a program named `Main` into the editor and choose **Run & visualize**. The local server compiles it, starts it under JDI, and returns a trace to the page. Your code stays on your computer.
 
-## Requirements
+The editor accepts a package-free `public class Main` for now. You can provide stdin in the optional **Program input** field. Traces stop at 400 steps or after 15 seconds. Use **Next** or the arrow keys to move through the recorded states.
 
-- JDK 17 or later (`jdk.jdi` is included with the JDK, not the JRE)
+## Hosted demo
 
-## Usage
+The GitHub Pages site is a static demo. It can replay the included example and traces opened as JSON files, but it cannot run Java on its own. To paste and execute code, start the local runner and open the local address above.
+
+## Run a trace from the command line
+
+The original CLI workflow is also available:
 
 ```bash
 cd backend
 ./run.sh target-code/Sample.java
 ```
 
-This compiles the tracer on its first run, traces `Sample.java`, and writes `frontend/trace.json`. Serve the `frontend/` folder with any static file server, then open the page. The example trace is already included so you can explore the visualizer without running the backend.
+It writes `frontend/trace.json`; open that trace using **Open trace** in the visualizer.
 
-To trace your own program:
+## How it works
 
-```bash
-./run.sh /path/to/YourProgram.java
-```
-
-If your program reads from stdin, pass an input file:
-
-```bash
-./run.sh /path/to/YourProgram.java sample-input.txt
-```
-
-The default trace limit is 400 steps. You can raise it with an optional third argument:
-
-```bash
-./run.sh /path/to/YourProgram.java sample-input.txt 1000
-```
-
-## Publish with GitHub Pages
-
-The repository includes a GitHub Actions workflow that publishes the static `frontend/` folder. To enable it:
-
-1. Merge the page and workflow changes into the default branch.
-2. In the repository settings, open **Pages** and set the publishing source to **GitHub Actions**.
-3. Push a change to `frontend/` or run **Deploy visualizer to GitHub Pages** from the Actions tab.
-
-The workflow deploys the included sample trace, so visitors can try the page immediately. Users can load their own generated trace JSON with **Open trace** or by dropping a JSON file onto the visualizer.
-
-## Project layout
-
-```
-backend/
-  src/main/java/visualizer/
-    Tracer.java
-    Json.java
-  target-code/
-    Sample.java
-  run.sh
-frontend/
-  index.html
-  style.css
-  app.js
-  sample-trace.json
-.github/workflows/
-  pages.yml
-experiments/
-  structure-visualizer/   # Separate static code-blueprint prototype
-```
+The backend compiles your source with `javac`, launches it in a child JVM, and uses the [Java Debug Interface (JDI)](https://docs.oracle.com/en/java/javase/21/docs/api/jdk.jdi/com/sun/jdi/package-summary.html) to capture real runtime state. The local web server serves the page and the trace endpoint on loopback (`127.0.0.1`). It does not expose a public code execution service.
 
 ## Current limitations
 
-- JDK library objects such as `HashMap` and `ArrayList` are summarized with `toString()` rather than expanded field by field.
-- Multi-threaded execution is not visualized specially.
-- The code view highlights lines but does not yet provide Java syntax coloring.
-- The hosted page replays traces; it does not compile or run Java code itself.
+- The editor currently expects a package-free `public class Main`.
+- The trace is capped at 400 steps and 15 seconds.
+- JDK library objects such as `HashMap` and `ArrayList` are summarized with `toString()` rather than expanded.
+- Concurrent threads are not shown as separate timelines.
+- The source view highlights the executing line but does not yet include Java syntax coloring.
