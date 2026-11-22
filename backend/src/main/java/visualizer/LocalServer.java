@@ -83,9 +83,8 @@ public final class LocalServer {
                 inputFile = work.resolve("input.txt");
                 Files.write(inputFile, input);
             }
-            Tracer tracer = new Tracer();
-            tracer.setMaxSteps(400);
-            tracer.run(sourceFile.toString(), traceFile.toString(), inputFile == null ? null : inputFile.toString());
+            new Tracer().run(sourceFile.toString(), traceFile.toString(),
+                    inputFile == null ? null : inputFile.toString());
             send(exchange, 200, "application/json; charset=utf-8", Files.readAllBytes(traceFile));
         } catch (RuntimeException e) {
             sendError(exchange, 422, e.getMessage() == null ? "Could not trace this program." : e.getMessage());
@@ -127,7 +126,8 @@ public final class LocalServer {
         body.put("error", message);
         StringWriter writer = new StringWriter();
         Json.write(body, writer);
-        send(exchange, status, "application/json; charset=utf-8", writer.toString().getBytes(StandardCharsets.UTF_8));
+        send(exchange, status, "application/json; charset=utf-8",
+                writer.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private static void send(HttpExchange exchange, int status, String contentType, byte[] body) throws IOException {
