@@ -18,7 +18,8 @@
       <span>Trace<span class="brand-light">Java</span></span>
     </a>
     <div class="topbar-actions">
-      <span class="status-pill"><span class="status-dot"></span>Runs on your computer</span>
+      <span class="status-pill runner-status" id="runnerStatus"><span class="status-dot"></span><span id="runnerStatusText">Local runner not connected</span></span>
+      <button class="button button-quiet connect-button" id="connectRunner" type="button">Connect local runner</button>
       <label class="button button-quiet upload-button" for="traceFileInput">Open trace <span aria-hidden="true">↗</span>
         <input type="file" id="traceFileInput" accept=".json,application/json">
       </label>
@@ -32,7 +33,7 @@
         <h1>See your Java code <span>come to life.</span></h1>
         <p class="intro-copy">Paste Java code and run it locally. Follow the real JVM line by line as variables change, calls stack up, objects take shape, and output appears.</p>
       </div>
-      <div class="intro-note"><span class="note-icon">↳</span><span>Your code stays on this computer. Start the local runner with JDK 17+ to run a program.</span></div>
+      <div class="intro-note"><span class="note-icon">↳</span><span>Your code runs on your computer. Start the local runner with JDK 17+, then connect from this page.</span></div>
     </section>
 
     <section class="editor-panel panel" aria-labelledby="editorHeading">
