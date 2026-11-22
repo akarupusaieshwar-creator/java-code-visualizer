@@ -65,11 +65,21 @@ public final class LocalServer {
     }
 
     private static void handleStatus(HttpExchange exchange, Set<String> allowedOrigins) throws IOException {
-        if (!configureCors(exchange, allowedOrigins) || handlePreflight(exchange)) return;
-        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())
+                && !"OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendError(exchange, 405, "Use GET to check the local runner.");
             return;
         }
+        String origin = exchange.getRequestHeaders().getFirst("Origin");
+        if (origin == null && "GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendRunnerStatus(exchange);
+            return;
+        }
+        if (!configureCors(exchange, allowedOrigins) || handlePreflight(exchange)) return;
+        sendRunnerStatus(exchange);
+    }
+
+    private static void sendRunnerStatus(HttpExchange exchange) throws IOException {
         Map<String, Object> status = new LinkedHashMap<>();
         status.put("ready", true);
         status.put("engine", "JDI");
