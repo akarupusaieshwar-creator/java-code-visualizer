@@ -1,41 +1,26 @@
 # Java Code Visualizer
 
-A step-by-step execution visualizer for Java, inspired by tools like Python
-Tutor and CodeChef's code visualizer. Runs your program under the real JVM
-debugger (JDI), so the values you see are the actual runtime state — not a
-simulation.
+A step-by-step execution visualizer for Java. It runs programs under the real JVM debugger (JDI), then lets you replay the resulting runtime state in a browser.
 
-- **Currently executed line** and **next line to be executed** highlighted
-  in the code panel
-- **Functions panel** — live call stack with local variables per frame
-  (recursion shows as multiple stacked frames, just like a real debugger)
-- **Objects panel** — arrays and objects on the heap, shown by reference,
-  matching how Java's memory model actually works (frames hold references,
-  heap holds the data)
-- **Step controls** — Start / Prev / Next / End, plus a scrub slider
-- **Program output** — stdout captured as the program actually runs
+- **Current and next lines** highlighted as you step
+- **Call stack** with local variables in every frame, including recursive calls
+- **Heap view** for arrays and user-defined objects
+- **Program output** captured while the program runs
+- **Trace replay controls** with keyboard shortcuts, a step slider, and JSON file loading
 
-Currently supports **Java only**. The trace format (`trace.json`) is
-intentionally language-agnostic, so support for other languages can be
-added later by writing a new tracer that emits the same JSON shape — the
-frontend won't need to change.
+The published frontend is a static site: it does not compile or execute Java in the browser. Generate a trace with the local JDK backend, then open it in the page. Your source and trace stay in your browser when using the hosted page.
 
 ## How it works
 
-1. `backend/` compiles your target `.java` file and launches it under the
-   [Java Debug Interface](https://docs.oracle.com/en/java/javase/21/docs/api/jdk.jdi/com/sun/jdi/package-summary.html)
-   (JDI) — the same API real Java debuggers use.
-2. It single-steps line by line, and at every step records the call stack,
-   local variables, and heap objects into a JSON trace.
-3. `frontend/` is a small static web page that loads that JSON and lets you
-   scrub through the execution.
+1. `backend/` compiles a `.java` file and launches it under the [Java Debug Interface](https://docs.oracle.com/en/java/javase/21/docs/api/jdk.jdi/com/sun/jdi/package-summary.html) (JDI).
+2. The tracer records the call stack, local variables, reachable heap objects, current source line, and stdout into a JSON trace.
+3. `frontend/` loads a trace and provides a step-by-step replay.
 
-No external dependencies — pure JDK on the backend, plain HTML/CSS/JS on
-the frontend.
+The backend uses the JDK; the frontend uses plain HTML, CSS, and JavaScript.
 
 ## Requirements
 
-- JDK 17+ (uses the `jdk.jdi` module, bundled with the JDK — not the JRE)
+- JDK 17 or later (`jdk.jdi` is included with the JDK, not the JRE)
 
 ## Usage
 
@@ -44,9 +29,7 @@ cd backend
 ./run.sh target-code/Sample.java
 ```
 
-This compiles the tracer (first run only), traces `Sample.java`, and
-writes `frontend/trace.json`. Then open `frontend/index.html` in a browser
-(or serve the `frontend/` folder with any static file server) to view it.
+This compiles the tracer on its first run, traces `Sample.java`, and writes `frontend/trace.json`. Serve the `frontend/` folder with any static file server, then open the page. The example trace is already included so you can explore the visualizer without running the backend.
 
 To trace your own program:
 
@@ -54,56 +37,52 @@ To trace your own program:
 ./run.sh /path/to/YourProgram.java
 ```
 
-If your program reads from stdin (`Scanner`, etc.), pass an input file:
+If your program reads from stdin, pass an input file:
 
 ```bash
 ./run.sh /path/to/YourProgram.java sample-input.txt
 ```
 
-You can also raise the step cap (default 400, to guard against tracing an
-infinite loop forever):
+The default trace limit is 400 steps. You can raise it with an optional third argument:
 
 ```bash
 ./run.sh /path/to/YourProgram.java sample-input.txt 1000
 ```
+
+## Publish with GitHub Pages
+
+The repository includes a GitHub Actions workflow that publishes the static `frontend/` folder. To enable it:
+
+1. Merge the page and workflow changes into the default branch.
+2. In the repository settings, open **Pages** and set the publishing source to **GitHub Actions**.
+3. Push a change to `frontend/` or run **Deploy visualizer to GitHub Pages** from the Actions tab.
+
+The workflow deploys the included sample trace, so visitors can try the page immediately. Users can load their own generated trace JSON with **Open trace** or by dropping a JSON file onto the visualizer.
 
 ## Project layout
 
 ```
 backend/
   src/main/java/visualizer/
-    Tracer.java        # JDI-based step tracer
-    Json.java           # tiny dependency-free JSON writer
+    Tracer.java
+    Json.java
   target-code/
-    Sample.java         # example program to trace
-  run.sh                # compile + trace in one command
+    Sample.java
+  run.sh
 frontend/
   index.html
   style.css
   app.js
-  sample-trace.json     # pre-generated trace for Sample.java, so the UI
-                         # has something to show immediately
+  sample-trace.json
+.github/workflows/
+  pages.yml
 experiments/
-  structure-visualizer/ # separate, unrelated prototype: a static,
-                         # parsing-based "code blueprint" view (no JDI,
-                         # no real execution) — not part of the tracer
+  structure-visualizer/   # Separate static code-blueprint prototype
 ```
 
-## Known limitations (first version)
+## Current limitations
 
-- Library objects (`HashMap`, `ArrayList`, etc.) show their `toString()`
-  rather than a fully expanded internal structure — expanding them
-  properly (buckets, entries) is a good next step.
-- Multi-threaded programs are traced on whichever thread JDI reports
-  stepping events for; concurrent execution isn't visualized specially.
-- No syntax highlighting yet in the code panel (line highlighting only).
-
-## Roadmap
-
-- [ ] Expand `HashMap` / `ArrayList` / `List` internals in the Objects panel
-- [ ] Syntax highlighting in the code view
-- [ ] Support for additional languages (Python via `sys.settrace`,
-      JavaScript via the V8 inspector protocol, etc.) reusing the same
-      `trace.json` schema and frontend
-- [ ] Drag-and-drop `.java` file upload + in-browser compile (via a small
-      backend server) instead of the CLI script
+- JDK library objects such as `HashMap` and `ArrayList` are summarized with `toString()` rather than expanded field by field.
+- Multi-threaded execution is not visualized specially.
+- The code view highlights lines but does not yet provide Java syntax coloring.
+- The hosted page replays traces; it does not compile or run Java code itself.
