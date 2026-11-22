@@ -14,7 +14,7 @@ bash backend/run-server.sh
 
 Keep the terminal window open, then open [http://127.0.0.1:8765](http://127.0.0.1:8765). Paste a program named `Main` into the editor and choose **Run & visualize**. The local server compiles it, starts it under JDI, and returns a trace to the page. Your code stays on your computer.
 
-The editor accepts a package-free `public class Main` for now. You can provide stdin in the optional **Program input** field. Traces stop at 400 steps or after 15 seconds. Use **Next** or the arrow keys to move through the recorded states.
+The editor accepts a package-free public class (for example, `Main` or `Sample`). You can provide stdin in the optional **Program input** field. Traces stop at 400 steps or after 15 seconds. Use **Next** or the arrow keys to move through the recorded states.
 
 ## Use the hosted page with your local runner
 
