@@ -17,9 +17,16 @@
     end: $("btnEnd")
   };
   const traceFileInput = $("traceFileInput");
+  const editorInput = $("editorInput");
+  const stdinInput = $("stdinInput");
+  const editorMessage = $("editorMessage");
+  const runButton = $("runCode");
+  const runButtonLabel = $("runButtonLabel");
+  const loadExampleButton = $("loadExample");
 
   let trace = null;
   let currentIndex = 0;
+  let demoTrace = null;
 
   function validateTrace(data) {
     if (!data || typeof data !== "object" || typeof data.source !== "string" || !Array.isArray(data.steps)) {
@@ -31,7 +38,10 @@
     return {
       className: typeof data.className === "string" ? data.className : "Java program",
       source: data.source,
-      steps: data.steps
+      steps: data.steps,
+      finalOutput: typeof data.finalOutput === "string" ? data.finalOutput : "",
+      truncated: data.truncated === true,
+      timedOut: data.timedOut === true
     };
   }
 
@@ -55,8 +65,14 @@
     stepSlider.max = Math.max(parsed.steps.length - 1, 0);
     stepSlider.value = "0";
     stepSlider.disabled = parsed.steps.length === 0;
+    if (editorInput) editorInput.value = parsed.source;
     const noun = parsed.steps.length === 1 ? "step" : "steps";
-    setMessage(parsed.steps.length ? parsed.steps.length + " execution " + noun + " · trace loaded" : "Trace loaded · no execution steps");
+    let suffix = parsed.timedOut ? " · stopped after the time limit" : parsed.truncated ? " · reached the step limit" : " · trace ready";
+    setMessage(parsed.steps.length ? parsed.steps.length + " execution " + noun + suffix : "Trace loaded · no execution steps");
+    if (editorMessage) {
+      editorMessage.className = "editor-message success";
+      editorMessage.textContent = parsed.steps.length ? "Trace ready · use Next to step through the program" : "This program produced no visible execution steps";
+    }
     render();
   }
 
@@ -264,15 +280,88 @@
     else showError("Drop a trace JSON file to open it.");
   });
 
+  async function runProgram() {
+    const source = editorInput.value;
+    runButton.disabled = true;
+    runButtonLabel.textContent = "Running on this computer…";
+    editorMessage.className = "editor-message";
+    editorMessage.textContent = "Compiling and tracing with the local JDK…";
+    setMessage("Running Java with the local JDK…");
+
+    try {
+      const headers = { "Content-Type": "text/plain; charset=utf-8" };
+      const input = stdinInput.value;
+      if (input.length) {
+        const bytes = new TextEncoder().encode(input);
+        let binary = "";
+        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+        headers["X-Program-Input"] = btoa(binary);
+      }
+      const response = await fetch("/api/trace", { method: "POST", headers, body: source });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result && result.error ? result.error : "The local runner is not connected. Start it, then open http://127.0.0.1:8765.");
+      }
+      loadTrace(result, "Main.java");
+      editorMessage.textContent = "Done · " + trace.steps.length + " steps recorded by the JVM";
+      document.querySelector(".workspace").scrollIntoView({ block: "start", behavior: "smooth" });
+    } catch (error) {
+      const message = error instanceof TypeError
+        ? "Local runner not connected. Start backend/run-server.bat (Windows) or backend/run-server.sh, then open http://127.0.0.1:8765."
+        : error.message;
+      editorMessage.className = "editor-message error";
+      editorMessage.textContent = message;
+      showError(message);
+    } finally {
+      runButton.disabled = false;
+      runButtonLabel.textContent = "Run & visualize";
+    }
+  }
+
+  runButton.addEventListener("click", runProgram);
+  editorInput.addEventListener("input", () => {
+    editorMessage.className = "editor-message";
+    editorMessage.textContent = "Ready · run to create a fresh execution trace";
+  });
+  editorInput.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      runButton.click();
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
+      const start = editorInput.selectionStart;
+      const end = editorInput.selectionEnd;
+      editorInput.setRangeText("    ", start, end, "end");
+    }
+  });
+  loadExampleButton.addEventListener("click", async () => {
+    try {
+      if (!demoTrace) {
+        const response = await fetch("sample-trace.json");
+        if (!response.ok) throw new Error("Example trace is not available.");
+        demoTrace = await response.json();
+      }
+      loadTrace(demoTrace, "Sample.java");
+    } catch (error) {
+      editorMessage.className = "editor-message error";
+      editorMessage.textContent = error.message;
+    }
+  });
+
   fetch("sample-trace.json")
     .then((response) => {
       if (!response.ok) throw new Error("Example trace unavailable");
       return response.json();
     })
-    .then((data) => loadTrace(data, "Sample.java"))
+    .then((data) => {
+      demoTrace = data;
+      loadTrace(data, "Sample.java");
+    })
     .catch(() => {
-      setMessage("Open a trace JSON to get started");
+      setMessage("Run code with the local runner, or open a trace JSON");
       stepStatus.textContent = "No trace loaded";
-      outputPanel.textContent = "(waiting for a trace)";
+      outputPanel.textContent = "(run your code to see output)";
+      editorMessage.textContent = "Start the local runner to execute this program.";
     });
 })();
