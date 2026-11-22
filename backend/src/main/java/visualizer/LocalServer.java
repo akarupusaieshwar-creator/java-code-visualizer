@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class LocalServer {
     private static final int MAX_SOURCE_BYTES = 256 * 1024;
@@ -24,24 +25,59 @@ public final class LocalServer {
         if (!Files.isDirectory(frontend)) throw new IllegalArgumentException("Frontend folder not found: " + frontend);
 
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
-        String allowedOrigin = "http://127.0.0.1:" + port;
-        server.createContext("/", exchange -> handle(exchange, frontend, allowedOrigin));
+        Set<String> allowedOrigins = Set.of(
+                "http://127.0.0.1:" + port,
+                "http://localhost:" + port,
+                "https://akarupusaieshwar-creator.github.io");
+        server.createContext("/", exchange -> handle(exchange, frontend, allowedOrigins));
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
         server.start();
         System.out.println("Java Code Visualizer is running at http://127.0.0.1:" + port);
         System.out.println("Keep this window open while using the visualizer. Press Ctrl+C to stop.");
     }
 
-    private static void handle(HttpExchange exchange, Path frontend, String allowedOrigin) throws IOException {
-        if ("/api/trace".equals(exchange.getRequestURI().getPath())) handleTrace(exchange, allowedOrigin);
-        else serveFile(exchange, frontend, exchange.getRequestURI().getPath());
+    private static void handle(HttpExchange exchange, Path frontend, Set<String> allowedOrigins) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        if ("/api/trace".equals(path)) handleTrace(exchange, allowedOrigins);
+        else if ("/api/status".equals(path)) handleStatus(exchange, allowedOrigins);
+        else serveFile(exchange, frontend, path);
     }
 
-    private static void handleTrace(HttpExchange exchange, String allowedOrigin) throws IOException {
-        if (!allowedOrigin.equals(exchange.getRequestHeaders().getFirst("Origin"))) {
-            sendError(exchange, 403, "Open the visualizer at http://127.0.0.1:" + allowedOrigin.substring(allowedOrigin.lastIndexOf(":") + 1) + ".");
+    private static boolean configureCors(HttpExchange exchange, Set<String> allowedOrigins) throws IOException {
+        String origin = exchange.getRequestHeaders().getFirst("Origin");
+        if (!allowedOrigins.contains(origin)) {
+            sendError(exchange, 403, "This page is not allowed to connect to the local runner.");
+            return false;
+        }
+        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", origin);
+        exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, X-Program-Input");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Private-Network", "true");
+        exchange.getResponseHeaders().set("Vary", "Origin");
+        return true;
+    }
+
+    private static boolean handlePreflight(HttpExchange exchange) throws IOException {
+        if (!"OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) return false;
+        exchange.sendResponseHeaders(204, -1);
+        exchange.close();
+        return true;
+    }
+
+    private static void handleStatus(HttpExchange exchange, Set<String> allowedOrigins) throws IOException {
+        if (!configureCors(exchange, allowedOrigins) || handlePreflight(exchange)) return;
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendError(exchange, 405, "Use GET to check the local runner.");
             return;
         }
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("ready", true);
+        status.put("engine", "JDI");
+        sendJson(exchange, 200, status);
+    }
+
+    private static void handleTrace(HttpExchange exchange, Set<String> allowedOrigins) throws IOException {
+        if (!configureCors(exchange, allowedOrigins) || handlePreflight(exchange)) return;
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendError(exchange, 405, "Use POST to run a Java program.");
             return;
