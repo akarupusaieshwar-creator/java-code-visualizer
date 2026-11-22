@@ -16,9 +16,15 @@ Keep the terminal window open, then open [http://127.0.0.1:8765](http://127.0.0.
 
 The editor accepts a package-free `public class Main` for now. You can provide stdin in the optional **Program input** field. Traces stop at 400 steps or after 15 seconds. Use **Next** or the arrow keys to move through the recorded states.
 
-## Hosted demo
+## Use the hosted page with your local runner
 
-The GitHub Pages site is a static demo. It can replay the included example and traces opened as JSON files, but it cannot run Java on its own. To paste and execute code, start the local runner and open the local address above.
+GitHub Pages cannot run Java by itself. To run code from the hosted page:
+
+1. Start the local runner with `backend/run-server.bat` (Windows) or `bash backend/run-server.sh` (macOS/Linux/WSL).
+2. On the hosted page, choose **Connect local runner**. If your browser asks to let the page access the local network, allow it.
+3. Paste code and choose **Run & visualize**.
+
+The browser sends the source from the page to the runner at `127.0.0.1` on your computer. The runner accepts requests only from this project’s hosted origin and loopback pages. If browser local-network access is blocked, open `http://127.0.0.1:8765` directly instead.
 
 ## Run a trace from the command line
 

@@ -23,10 +23,17 @@
   const runButton = $("runCode");
   const runButtonLabel = $("runButtonLabel");
   const loadExampleButton = $("loadExample");
+  const connectRunnerButton = $("connectRunner");
+  const runnerStatus = $("runnerStatus");
+  const runnerStatusText = $("runnerStatusText");
 
   let trace = null;
   let currentIndex = 0;
   let demoTrace = null;
+  const isHostedPage = location.hostname === "akarupusaieshwar-creator.github.io";
+  const runnerBase = isHostedPage || location.protocol === "file:" ? "http://127.0.0.1:8765" : location.origin;
+  let runnerConnected = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+  if (runnerConnected) setRunnerStatus(true, "Local runner connected");
 
   function validateTrace(data) {
     if (!data || typeof data !== "object" || typeof data.source !== "string" || !Array.isArray(data.steps)) {
@@ -280,6 +287,38 @@
     else showError("Drop a trace JSON file to open it.");
   });
 
+  function setRunnerStatus(connected, message) {
+    runnerStatus.dataset.state = connected ? "connected" : "disconnected";
+    runnerStatusText.textContent = message;
+    connectRunnerButton.textContent = connected ? "Runner connected" : "Connect local runner";
+  }
+
+  async function connectToLocalRunner() {
+    connectRunnerButton.disabled = true;
+    connectRunnerButton.textContent = "Connecting…";
+    setRunnerStatus(false, "Checking local runner…");
+    try {
+      const response = await fetch(runnerBase + "/api/status", { method: "GET", mode: "cors" });
+      const status = await response.json().catch(() => null);
+      if (!response.ok || !status || status.ready !== true) {
+        throw new Error(status && status.error ? status.error : "Local runner did not respond.");
+      }
+      runnerConnected = true;
+      setRunnerStatus(true, "Local runner connected");
+      editorMessage.className = "editor-message success";
+      editorMessage.textContent = "Connected to the local JDK · your code will run on this computer";
+      return true;
+    } catch (error) {
+      runnerConnected = false;
+      setRunnerStatus(false, "Local runner not connected");
+      editorMessage.className = "editor-message error";
+      editorMessage.textContent = "Could not reach the runner. Start backend/run-server.bat and allow this site to access your local network if Chrome asks. You can also open http://127.0.0.1:8765 directly.";
+      return false;
+    } finally {
+      connectRunnerButton.disabled = false;
+    }
+  }
+
   async function runProgram() {
     const source = editorInput.value;
     runButton.disabled = true;
@@ -289,6 +328,7 @@
     setMessage("Running Java with the local JDK…");
 
     try {
+      if (!runnerConnected && !(await connectToLocalRunner())) throw new Error(editorMessage.textContent);
       const headers = { "Content-Type": "text/plain; charset=utf-8" };
       const input = stdinInput.value;
       if (input.length) {
@@ -297,7 +337,7 @@
         bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
         headers["X-Program-Input"] = btoa(binary);
       }
-      const response = await fetch("/api/trace", { method: "POST", headers, body: source });
+      const response = await fetch(runnerBase + "/api/trace", { method: "POST", headers, body: source, mode: "cors" });
       const result = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(result && result.error ? result.error : "The local runner is not connected. Start it, then open http://127.0.0.1:8765.");
@@ -307,8 +347,10 @@
       document.querySelector(".workspace").scrollIntoView({ block: "start", behavior: "smooth" });
     } catch (error) {
       const message = error instanceof TypeError
-        ? "Local runner not connected. Start backend/run-server.bat (Windows) or backend/run-server.sh, then open http://127.0.0.1:8765."
+        ? "Could not reach the local runner. Start backend/run-server.bat and keep its window open. If Chrome asks, allow this site to access your local network; or open http://127.0.0.1:8765 directly."
         : error.message;
+      runnerConnected = false;
+      setRunnerStatus(false, "Local runner not connected");
       editorMessage.className = "editor-message error";
       editorMessage.textContent = message;
       showError(message);
@@ -319,6 +361,7 @@
   }
 
   runButton.addEventListener("click", runProgram);
+  connectRunnerButton.addEventListener("click", connectToLocalRunner);
   editorInput.addEventListener("input", () => {
     editorMessage.className = "editor-message";
     editorMessage.textContent = "Ready · run to create a fresh execution trace";
