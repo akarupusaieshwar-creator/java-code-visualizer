@@ -37,3 +37,10 @@ main{width:min(1400px,calc(100% - 48px));margin:0 auto}.intro{display:flex;justi
 .run-button:disabled{cursor:progress;opacity:.65}
 .workspace{scroll-margin-top:20px}
 @media(max-width:560px){.source-editor{min-height:250px;padding:13px;font-size:11px}.editor-footer{align-items:stretch;flex-direction:column;padding:11px}.editor-actions{width:100%}.editor-actions .button{flex:1}.editor-message{min-height:16px}}
+
+
+.runner-status[data-state="disconnected"] .status-dot{background:var(--amber);box-shadow:0 0 10px rgba(240,191,114,.3)}
+.runner-status[data-state="connected"] .status-dot{background:var(--mint)}
+.connect-button{white-space:nowrap;font-size:11px;padding-inline:10px}
+.connect-button:disabled{cursor:progress;opacity:.65}
+@media(max-width:560px){.connect-button{min-height:34px;padding-inline:8px;font-size:10px}}
