@@ -165,6 +165,10 @@ public final class LocalServer {
     private static void sendError(HttpExchange exchange, int status, String message) throws IOException {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
+        sendJson(exchange, status, body);
+    }
+
+    private static void sendJson(HttpExchange exchange, int status, Map<String, Object> body) throws IOException {
         StringWriter writer = new StringWriter();
         Json.write(body, writer);
         send(exchange, status, "application/json; charset=utf-8",
