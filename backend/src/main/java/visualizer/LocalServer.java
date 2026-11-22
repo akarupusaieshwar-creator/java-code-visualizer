@@ -12,6 +12,8 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class LocalServer {
     private static final int MAX_SOURCE_BYTES = 256 * 1024;
@@ -106,10 +108,12 @@ public final class LocalServer {
             sendError(exchange, 400, "For now, use a package-free class named Main.");
             return;
         }
-        if (!source.matches("(?s).*\\bpublic\\s+class\\s+Main\\b.*")) {
-            sendError(exchange, 400, "Add public class Main so the tracer can start your program.");
+        Matcher classMatcher = Pattern.compile("\\bpublic\\s+class\\s+(\\w+)\\b").matcher(source);
+        if (!classMatcher.find()) {
+            sendError(exchange, 400, "Add a public class declaration so the tracer can start your program.");
             return;
         }
+        String className = classMatcher.group(1);
 
         byte[] input;
         try {
@@ -126,7 +130,7 @@ public final class LocalServer {
 
         Path work = Files.createTempDirectory("java-visualizer-");
         try {
-            Path sourceFile = work.resolve("Main.java");
+            Path sourceFile = work.resolve(className + ".java");
             Path traceFile = work.resolve("trace.json");
             Path inputFile = null;
             Files.writeString(sourceFile, source, StandardCharsets.UTF_8);
