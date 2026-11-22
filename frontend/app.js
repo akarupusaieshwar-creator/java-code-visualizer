@@ -1,222 +1,278 @@
 (() => {
-  const codeView = document.getElementById("codeView");
-  const functionsPanel = document.getElementById("functionsPanel");
-  const objectsPanel = document.getElementById("objectsPanel");
-  const outputPanel = document.getElementById("outputPanel");
-  const stepStatus = document.getElementById("stepStatus");
-  const stepSlider = document.getElementById("stepSlider");
-  const classNameLabel = document.getElementById("classNameLabel");
-
-  const btnStart = document.getElementById("btnStart");
-  const btnPrev = document.getElementById("btnPrev");
-  const btnNext = document.getElementById("btnNext");
-  const btnEnd = document.getElementById("btnEnd");
-  const traceFileInput = document.getElementById("traceFileInput");
+  const $ = (id) => document.getElementById(id);
+  const codeView = $("codeView");
+  const functionsPanel = $("functionsPanel");
+  const objectsPanel = $("objectsPanel");
+  const outputPanel = $("outputPanel");
+  const stepStatus = $("stepStatus");
+  const stepSlider = $("stepSlider");
+  const classNameLabel = $("classNameLabel");
+  const traceMessage = $("traceMessage");
+  const frameCount = $("frameCount");
+  const objectCount = $("objectCount");
+  const buttons = {
+    start: $("btnStart"),
+    prev: $("btnPrev"),
+    next: $("btnNext"),
+    end: $("btnEnd")
+  };
+  const traceFileInput = $("traceFileInput");
 
   let trace = null;
-  let sourceLines = [];
   let currentIndex = 0;
 
-  traceFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        loadTrace(JSON.parse(reader.result));
-      } catch (err) {
-        alert("Could not parse trace.json: " + err.message);
-      }
+  function validateTrace(data) {
+    if (!data || typeof data !== "object" || typeof data.source !== "string" || !Array.isArray(data.steps)) {
+      throw new Error("This file doesn't look like a Java Visualizer trace. Choose a trace JSON file.");
+    }
+    if (data.steps.some((step) => !step || !Number.isFinite(Number(step.line)))) {
+      throw new Error("The trace has an invalid execution step.");
+    }
+    return {
+      className: typeof data.className === "string" ? data.className : "Java program",
+      source: data.source,
+      steps: data.steps
     };
-    reader.readAsText(file);
-  });
+  }
 
-  function loadTrace(data) {
-    trace = data;
-    sourceLines = trace.source.split("\n");
+  function showError(message) {
+    traceMessage.textContent = message;
+    traceMessage.parentElement.classList.add("has-error");
+  }
+
+  function setMessage(message) {
+    traceMessage.textContent = message;
+    traceMessage.parentElement.classList.remove("has-error");
+  }
+
+  function loadTrace(data, sourceName) {
+    const parsed = validateTrace(data);
+    trace = parsed;
     currentIndex = 0;
-    classNameLabel.textContent = trace.className || "your code";
-    renderCodeSkeleton();
-    stepSlider.max = Math.max(trace.steps.length - 1, 0);
-    stepSlider.value = 0;
+    classNameLabel.textContent = sourceName || parsed.className + ".java";
+    classNameLabel.title = parsed.className;
+    drawSource(parsed.source);
+    stepSlider.max = Math.max(parsed.steps.length - 1, 0);
+    stepSlider.value = "0";
+    stepSlider.disabled = parsed.steps.length === 0;
+    const noun = parsed.steps.length === 1 ? "step" : "steps";
+    setMessage(parsed.steps.length ? parsed.steps.length + " execution " + noun + " · trace loaded" : "Trace loaded · no execution steps");
     render();
   }
 
-  function renderCodeSkeleton() {
-    codeView.innerHTML = "";
-    sourceLines.forEach((line, i) => {
-      const div = document.createElement("div");
-      div.className = "code-line";
-      div.id = "line-" + (i + 1);
-      div.innerHTML =
-        '<span class="lineno">' + (i + 1) + "</span>" + escapeHtml(line);
-      codeView.appendChild(div);
+  function drawSource(source) {
+    codeView.replaceChildren();
+    source.split("\n").forEach((line, i) => {
+      const row = document.createElement("div");
+      row.className = "code-line";
+      row.id = "line-" + (i + 1);
+      const number = document.createElement("span");
+      number.className = "lineno";
+      number.textContent = String(i + 1);
+      number.setAttribute("aria-hidden", "true");
+      row.append(number, document.createTextNode(line));
+      codeView.appendChild(row);
     });
-  }
-
-  function escapeHtml(s) {
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
   }
 
   function render() {
-    if (!trace || trace.steps.length === 0) return;
+    if (!trace) return;
     const step = trace.steps[currentIndex];
-    const nextStep = trace.steps[currentIndex + 1];
-
-    // Highlight current / next line
-    document.querySelectorAll(".code-line").forEach((el) => {
+    const hasSteps = Boolean(step);
+    codeView.querySelectorAll(".code-line.current, .code-line.next").forEach((el) => {
       el.classList.remove("current", "next");
     });
-    const curEl = document.getElementById("line-" + step.line);
-    if (curEl) {
-      curEl.classList.add("current");
-      curEl.scrollIntoView({ block: "center", behavior: "smooth" });
+
+    if (!hasSteps) {
+      functionsPanel.textContent = "This trace has no recorded execution steps.";
+      objectsPanel.textContent = "No heap snapshot is available.";
+      outputPanel.textContent = trace.finalOutput || "(no output)";
+      frameCount.textContent = "0";
+      objectCount.textContent = "0";
+      stepStatus.textContent = "No execution steps";
+      updateButtons(false);
+      return;
     }
+
+    const currentLine = codeView.querySelector("#line-" + Number(step.line));
+    if (currentLine) {
+      currentLine.classList.add("current");
+      currentLine.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    const nextStep = trace.steps[currentIndex + 1];
     if (nextStep) {
-      const nextEl = document.getElementById("line-" + nextStep.line);
-      if (nextEl) nextEl.classList.add("next");
+      const nextLine = codeView.querySelector("#line-" + Number(nextStep.line));
+      if (nextLine) nextLine.classList.add("next");
     }
 
-    renderFunctions(step);
-    renderObjects(step);
+    renderFrames(step.frames || []);
+    renderObjects(step.heap || {});
     outputPanel.textContent = step.stdout || "";
-
-    stepStatus.textContent = `Step ${currentIndex + 1} of ${trace.steps.length}`;
-    stepSlider.value = currentIndex;
-
-    btnStart.disabled = currentIndex === 0;
-    btnPrev.disabled = currentIndex === 0;
-    btnNext.disabled = currentIndex === trace.steps.length - 1;
-    btnEnd.disabled = currentIndex === trace.steps.length - 1;
+    stepStatus.textContent = "Step " + (currentIndex + 1) + " of " + trace.steps.length + " · line " + step.line;
+    stepSlider.value = String(currentIndex);
+    updateButtons(true);
   }
 
-  function renderFunctions(step) {
-    functionsPanel.innerHTML = "";
-    // Deepest frame first (top of call stack), like a real debugger.
-    step.frames.forEach((frame) => {
+  function updateButtons(hasSteps) {
+    buttons.start.disabled = !hasSteps || currentIndex === 0;
+    buttons.prev.disabled = !hasSteps || currentIndex === 0;
+    buttons.next.disabled = !hasSteps || currentIndex >= trace.steps.length - 1;
+    buttons.end.disabled = !hasSteps || currentIndex >= trace.steps.length - 1;
+  }
+
+  function renderFrames(frames) {
+    frameCount.textContent = String(frames.length);
+    functionsPanel.replaceChildren();
+    if (!frames.length) {
+      functionsPanel.className = "panel-content empty-state";
+      functionsPanel.textContent = "No application frames were recorded at this step.";
+      return;
+    }
+    functionsPanel.className = "panel-content";
+    frames.forEach((frame, index) => {
       const box = document.createElement("div");
       box.className = "frame-box";
-
       const title = document.createElement("div");
       title.className = "frame-title";
-      title.textContent = frame.method + "  (line " + frame.line + ")";
-      box.appendChild(title);
-
+      title.textContent = (index === 0 ? "▸ " : "") + (frame.method || "method") + "  ·  line " + (frame.line ?? "—");
       const locals = document.createElement("div");
       locals.className = "frame-locals";
-      frame.locals.forEach((local) => {
+      (frame.locals || []).forEach((local) => {
         const chip = document.createElement("span");
         chip.className = "local-chip";
-        chip.innerHTML =
-          '<span class="name">' +
-          escapeHtml(local.name) +
-          "</span>" +
-          formatValue(local.value);
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = local.name || "value";
+        chip.append(name, document.createTextNode(formatValueText(local.value)));
         locals.appendChild(chip);
       });
-      box.appendChild(locals);
-
+      if (!locals.childElementCount) {
+        const noLocals = document.createElement("span");
+        noLocals.className = "empty-state";
+        noLocals.textContent = "No visible local variables";
+        locals.appendChild(noLocals);
+      }
+      box.append(title, locals);
       functionsPanel.appendChild(box);
     });
   }
 
-  function formatValue(v) {
-    if (v === null || v === undefined) return '<span class="ref">null</span>';
-    if (typeof v === "object" && "ref" in v) {
-      return '<span class="ref">id' + v.ref + "</span>";
-    }
-    if (typeof v === "string") return escapeHtml(JSON.stringify(v));
-    return escapeHtml(String(v));
+  function formatValueText(value) {
+    if (value === null || value === undefined) return "null";
+    if (typeof value === "object" && Object.hasOwn(value, "ref")) return " → id" + value.ref;
+    if (typeof value === "string") return " " + JSON.stringify(value);
+    return " " + String(value);
   }
 
-  function renderObjects(step) {
-    objectsPanel.innerHTML = "";
-    const heap = step.heap || {};
+  function renderObjects(heap) {
     const ids = Object.keys(heap);
-    if (ids.length === 0) {
-      objectsPanel.innerHTML =
-        '<div style="color:var(--text-dim); font-size:12px;">(none yet)</div>';
+    objectCount.textContent = String(ids.length);
+    objectsPanel.replaceChildren();
+    if (!ids.length) {
+      objectsPanel.className = "panel-content empty-state";
+      objectsPanel.textContent = "No heap objects are reachable at this step.";
       return;
     }
+    objectsPanel.className = "panel-content";
     ids.forEach((id) => {
-      const obj = heap[id];
+      const obj = heap[id] || {};
       const box = document.createElement("div");
       box.className = "object-box";
-
       const header = document.createElement("div");
       header.className = "obj-header";
-      header.textContent = "id" + id + " : " + shortType(obj.type);
-      box.appendChild(header);
-
+      header.textContent = "id" + id + " · " + shortType(obj.type);
       const body = document.createElement("div");
       body.className = "obj-body";
       if (obj.kind === "array") {
-        body.innerHTML =
-          "[ " +
-          obj.elements.map((e) => formatValue(e)).join(", ") +
-          " ]";
-      } else if (obj.fields) {
-        body.innerHTML = Object.entries(obj.fields)
-          .map(
-            ([k, v]) =>
-              '<div><span class="name" style="color:var(--text-dim)">' +
-              escapeHtml(k) +
-              "</span> = " +
-              formatValue(v) +
-              "</div>"
-          )
-          .join("");
-      } else if (obj.summary !== undefined) {
-        body.textContent = obj.summary;
+        body.textContent = "[ " + (obj.elements || []).map(formatValueText).join(", ").trim() + " ]";
+      } else if (obj.fields && typeof obj.fields === "object") {
+        Object.entries(obj.fields).forEach(([key, value]) => {
+          const field = document.createElement("div");
+          field.className = "object-field";
+          const label = document.createElement("span");
+          label.className = "name";
+          label.textContent = key;
+          field.append(label, document.createTextNode("= " + formatValueText(value).trim()));
+          body.appendChild(field);
+        });
+      } else {
+        body.textContent = obj.summary || "Object details unavailable";
       }
-      box.appendChild(body);
-
+      box.append(header, body);
       objectsPanel.appendChild(box);
     });
   }
 
-  function shortType(t) {
-    if (!t) return "";
-    const idx = t.lastIndexOf(".");
-    return idx >= 0 ? t.substring(idx + 1) : t;
+  function shortType(type) {
+    if (typeof type !== "string") return "object";
+    const idx = type.lastIndexOf(".");
+    return idx >= 0 ? type.slice(idx + 1) : type;
   }
 
-  btnStart.addEventListener("click", () => {
-    currentIndex = 0;
-    render();
+  async function readTraceFile(file) {
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      loadTrace(data, file.name);
+    } catch (error) {
+      showError(error instanceof SyntaxError ? "Couldn't read that JSON file. Choose a valid trace." : error.message);
+    }
+  }
+
+  traceFileInput.addEventListener("change", (event) => {
+    readTraceFile(event.target.files[0]);
+    event.target.value = "";
   });
-  btnEnd.addEventListener("click", () => {
-    currentIndex = trace.steps.length - 1;
-    render();
-  });
-  btnPrev.addEventListener("click", () => {
-    if (currentIndex > 0) currentIndex--;
-    render();
-  });
-  btnNext.addEventListener("click", () => {
-    if (trace && currentIndex < trace.steps.length - 1) currentIndex++;
-    render();
-  });
+
+  buttons.start.addEventListener("click", () => { currentIndex = 0; render(); });
+  buttons.end.addEventListener("click", () => { currentIndex = trace.steps.length - 1; render(); });
+  buttons.prev.addEventListener("click", () => { if (currentIndex > 0) currentIndex--; render(); });
+  buttons.next.addEventListener("click", () => { if (trace && currentIndex < trace.steps.length - 1) currentIndex++; render(); });
   stepSlider.addEventListener("input", () => {
-    currentIndex = parseInt(stepSlider.value, 10);
+    currentIndex = Number.parseInt(stepSlider.value, 10) || 0;
     render();
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (!trace) return;
-    if (e.key === "ArrowRight") btnNext.click();
-    if (e.key === "ArrowLeft") btnPrev.click();
+  document.addEventListener("keydown", (event) => {
+    if (!trace || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.target instanceof HTMLElement && /INPUT|TEXTAREA|SELECT|BUTTON/.test(event.target.tagName)) return;
+    if (event.key === "ArrowRight") { event.preventDefault(); buttons.next.click(); }
+    if (event.key === "ArrowLeft") { event.preventDefault(); buttons.prev.click(); }
+    if (event.key === "Home") { event.preventDefault(); buttons.start.click(); }
+    if (event.key === "End") { event.preventDefault(); buttons.end.click(); }
   });
 
-  // Best-effort auto-load of ./trace.json when served over http(s).
-  // (Silently does nothing under file:// or if the file isn't there yet.)
-  if (location.protocol !== "file:") {
-    fetch("trace.json")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(loadTrace)
-      .catch(() => {});
-  }
+  const workspace = document.querySelector(".workspace");
+  let dragDepth = 0;
+  workspace.addEventListener("dragenter", (event) => {
+    event.preventDefault();
+    dragDepth++;
+    workspace.classList.add("dragging");
+  });
+  workspace.addEventListener("dragover", (event) => event.preventDefault());
+  workspace.addEventListener("dragleave", (event) => {
+    event.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) workspace.classList.remove("dragging");
+  });
+  workspace.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dragDepth = 0;
+    workspace.classList.remove("dragging");
+    const file = [...(event.dataTransfer?.files || [])].find((item) => item.name.toLowerCase().endsWith(".json"));
+    if (file) readTraceFile(file);
+    else showError("Drop a trace JSON file to open it.");
+  });
+
+  fetch("sample-trace.json")
+    .then((response) => {
+      if (!response.ok) throw new Error("Example trace unavailable");
+      return response.json();
+    })
+    .then((data) => loadTrace(data, "Sample.java"))
+    .catch(() => {
+      setMessage("Open a trace JSON to get started");
+      stepStatus.textContent = "No trace loaded";
+      outputPanel.textContent = "(waiting for a trace)";
+    });
 })();
